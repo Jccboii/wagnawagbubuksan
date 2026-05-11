@@ -1,0 +1,474 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local lp = Players.LocalPlayer
+local char = lp.Character or lp.CharacterAdded:Wait()
+local MainGui = lp.PlayerGui:WaitForChild("MainGui")
+local Events = RS:WaitForChild("Events")
+local spawnPoints = workspace:WaitForChild("Spawnpoint")
+
+local autoFish = false
+local autoSell = false
+local autoSkill = false
+local barLock = false
+local targetFishEnabled = false
+local sellDelay = 30
+local skillDelay = 1
+local selectedSkills = {}
+local acceptCount = 1
+local claimCount = 1
+local targetFishList = {}
+local abandonMethod = "recast"
+
+local fishNames = {}
+local fishVFX = RS:WaitForChild("FishVFX")
+for _, fish in pairs(fishVFX:GetChildren()) do
+    table.insert(fishNames, fish.Name)
+end
+table.sort(fishNames)
+
+local spawnList = {}
+for _, sp in pairs(spawnPoints:GetChildren()) do
+    table.insert(spawnList, sp.Name)
+end
+table.sort(spawnList)
+
+local function teleportTo(name)
+    local sp = spawnPoints:FindFirstChild(name)
+    if sp then
+        local char2 = lp.Character
+        if char2 and char2:FindFirstChild("HumanoidRootPart") then
+            if sp:IsA("BasePart") then
+                char2.HumanoidRootPart.CFrame = sp.CFrame + Vector3.new(0, 3, 0)
+            elseif sp:IsA("Model") then
+                char2.HumanoidRootPart.CFrame = sp:GetModelCFrame() + Vector3.new(0, 3, 0)
+            else
+                local part = sp:FindFirstChildWhichIsA("BasePart")
+                if part then
+                    char2.HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+                end
+            end
+        end
+    end
+end
+
+local function castAndConfirm()
+    local timeout = 0
+    repeat
+        pcall(function()
+            Events:WaitForChild("Fishing"):FireServer()
+        end)
+        task.wait(0.5)
+        timeout = timeout + 0.5
+        if timeout >= 10 then
+            return false
+        end
+    until (char:GetAttribute("Fishing") or not autoFish)
+    return true
+end
+
+local function waitForFishDeath()
+    local timeout = 0
+    repeat
+        task.wait(0.1)
+        timeout = timeout + 0.1
+        if timeout >= 10 then return end
+    until lp:GetAttribute("FishID")
+
+    local fishID = lp:GetAttribute("FishID")
+    local fish = workspace:WaitForChild("Fishes"):FindFirstChild(tostring(fishID))
+    if not fish then return end
+
+    timeout = 0
+    repeat
+        task.wait(0.1)
+        timeout = timeout + 0.1
+        if timeout >= 60 then return end
+        if not fish or not fish.Parent then return end
+    until fish.Value <= 0
+end
+
+local function abandonFish()
+    if abandonMethod == "recast" then
+        pcall(function()
+            Events:WaitForChild("Fishing"):FireServer()
+        end)
+    elseif abandonMethod == "reequip" then
+        pcall(function()
+            Events:WaitForChild("ToggleHotbar"):InvokeServer("1")
+            task.wait(0.2)
+            Events:WaitForChild("ToggleHotbar"):InvokeServer("1")
+        end)
+    end
+end
+
+Events.FishingMinigame.OnClientEvent:Connect(function(p1)
+    if targetFishEnabled then
+        local fishName = p1.FishName or "Fish"
+        if not targetFishList[fishName] then
+            task.wait(0.2)
+            abandonFish()
+        end
+    end
+end)
+
+local Window = Rayfield:CreateWindow({
+    Name = "Fishing Hub",
+    LoadingTitle = "Fishing Hub",
+    LoadingSubtitle = "Loading...",
+    Theme = {
+        Background = Color3.fromRGB(12, 12, 28),
+        Topbar = Color3.fromRGB(18, 18, 40),
+        Shadow = Color3.fromRGB(5, 5, 15),
+        NotificationBackground = Color3.fromRGB(18, 18, 40),
+        NotificationActionsBackground = Color3.fromRGB(22, 22, 48),
+        TabBackground = Color3.fromRGB(14, 14, 32),
+        TabStroke = Color3.fromRGB(40, 40, 80),
+        TabBackgroundSelected = Color3.fromRGB(25, 25, 60),
+        TabTextColor = Color3.fromRGB(120, 120, 180),
+        SelectedTabTextColor = Color3.fromRGB(140, 160, 255),
+        ElementBackground = Color3.fromRGB(20, 20, 45),
+        ElementBackgroundHover = Color3.fromRGB(28, 28, 60),
+        SecondaryElementBackground = Color3.fromRGB(22, 22, 50),
+        ElementStroke = Color3.fromRGB(45, 45, 90),
+        SecondaryElementStroke = Color3.fromRGB(38, 38, 75),
+        SliderBackground = Color3.fromRGB(30, 30, 65),
+        SliderProgress = Color3.fromRGB(100, 120, 255),
+        SliderStroke = Color3.fromRGB(50, 50, 100),
+        ToggleBackground = Color3.fromRGB(30, 30, 65),
+        ToggleEnabled = Color3.fromRGB(100, 120, 255),
+        ToggleDisabled = Color3.fromRGB(50, 50, 90),
+        ToggleEnabledStroke = Color3.fromRGB(80, 100, 220),
+        ToggleDisabledStroke = Color3.fromRGB(40, 40, 80),
+        ToggleEnabledOuterStroke = Color3.fromRGB(60, 80, 180),
+        ToggleDisabledOuterStroke = Color3.fromRGB(30, 30, 65),
+        DropdownSelected = Color3.fromRGB(100, 120, 255),
+        DropdownUnselected = Color3.fromRGB(35, 35, 70),
+        InputBackground = Color3.fromRGB(20, 20, 45),
+        InputStroke = Color3.fromRGB(45, 45, 90),
+        PlaceholderColor = Color3.fromRGB(90, 90, 140),
+        TextColor = Color3.fromRGB(210, 215, 255),
+        SubTextColor = Color3.fromRGB(140, 145, 200),
+        PureTitleTextColor = Color3.fromRGB(160, 175, 255),
+        TitleTextColor = Color3.fromRGB(160, 175, 255),
+        ButtonColor = Color3.fromRGB(55, 60, 140),
+        ButtonStroke = Color3.fromRGB(80, 90, 180),
+        ButtonTextColor = Color3.fromRGB(220, 225, 255),
+    },
+    DisableRayfieldPrompts = true,
+    DisableBuildWarnings = true,
+})
+
+local FishTab = Window:CreateTab("Fishing", nil)
+local TargetTab = Window:CreateTab("Target Fish", nil)
+local QuestTab = Window:CreateTab("Quest", nil)
+local TpTab = Window:CreateTab("Teleport", nil)
+
+FishTab:CreateSection("Auto Fish")
+
+FishTab:CreateToggle({
+    Name = "Auto Fish",
+    CurrentValue = false,
+    Flag = "AutoFish",
+    Callback = function(val)
+        autoFish = val
+        if val then
+            task.spawn(function()
+                while autoFish do
+                    pcall(function()
+                        local success = castAndConfirm()
+                        if success then
+                            waitForFishDeath()
+                        end
+                    end)
+                    task.wait(0.5)
+                end
+            end)
+        end
+    end
+})
+
+FishTab:CreateSection("Bar Lock")
+
+FishTab:CreateToggle({
+    Name = "Bar Lock",
+    CurrentValue = false,
+    Flag = "BarLock",
+    Callback = function(val)
+        barLock = val
+    end
+})
+
+FishTab:CreateSection("Auto Skill")
+
+FishTab:CreateToggle({
+    Name = "Use Skill Z",
+    CurrentValue = false,
+    Flag = "SkillZ",
+    Callback = function(val)
+        selectedSkills["Z"] = val
+    end
+})
+
+FishTab:CreateToggle({
+    Name = "Use Skill X",
+    CurrentValue = false,
+    Flag = "SkillX",
+    Callback = function(val)
+        selectedSkills["X"] = val
+    end
+})
+
+FishTab:CreateToggle({
+    Name = "Use Skill C",
+    CurrentValue = false,
+    Flag = "SkillC",
+    Callback = function(val)
+        selectedSkills["C"] = val
+    end
+})
+
+FishTab:CreateSlider({
+    Name = "Skill Use Delay (s)",
+    Range = {0.1, 5},
+    Increment = 0.1,
+    CurrentValue = 1,
+    Flag = "SkillDelay",
+    Callback = function(val)
+        skillDelay = val
+    end
+})
+
+FishTab:CreateToggle({
+    Name = "Auto Skill",
+    CurrentValue = false,
+    Flag = "AutoSkill",
+    Callback = function(val)
+        autoSkill = val
+        if val then
+            task.spawn(function()
+                while autoSkill do
+                    if MainGui.Fishing.Visible then
+                        for skill, enabled in pairs(selectedSkills) do
+                            if enabled then
+                                pcall(function()
+                                    Events:WaitForChild("UseSkill"):FireServer(skill)
+                                end)
+                                task.wait(skillDelay)
+                            end
+                        end
+                    end
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end
+})
+
+FishTab:CreateSection("Auto Sell")
+
+FishTab:CreateToggle({
+    Name = "Auto Sell",
+    CurrentValue = false,
+    Flag = "AutoSell",
+    Callback = function(val)
+        autoSell = val
+        if val then
+            task.spawn(function()
+                while autoSell do
+                    pcall(function()
+                        Events:WaitForChild("SellFish"):FireServer("All")
+                    end)
+                    task.wait(sellDelay)
+                end
+            end)
+        end
+    end
+})
+
+FishTab:CreateSlider({
+    Name = "Sell Delay (s)",
+    Range = {10, 60},
+    Increment = 5,
+    CurrentValue = 30,
+    Flag = "SellDelay",
+    Callback = function(val)
+        sellDelay = val
+    end
+})
+
+FishTab:CreateButton({
+    Name = "Sell Now",
+    Callback = function()
+        pcall(function()
+            Events:WaitForChild("SellFish"):FireServer("All")
+        end)
+        Rayfield:Notify({
+            Title = "Sell",
+            Content = "Sold all fish!",
+            Duration = 2,
+        })
+    end
+})
+
+TargetTab:CreateSection("Target Fish")
+
+TargetTab:CreateToggle({
+    Name = "Enable Targeted Fishing",
+    CurrentValue = false,
+    Flag = "TargetFishEnabled",
+    Callback = function(val)
+        targetFishEnabled = val
+    end
+})
+
+TargetTab:CreateSection("Abandon Method")
+
+TargetTab:CreateToggle({
+    Name = "Re-cast",
+    CurrentValue = true,
+    Flag = "AbandonRecast",
+    Callback = function(val)
+        if val then
+            abandonMethod = "recast"
+        end
+    end
+})
+
+TargetTab:CreateToggle({
+    Name = "Re-equip Rod",
+    CurrentValue = false,
+    Flag = "AbandonReequip",
+    Callback = function(val)
+        if val then
+            abandonMethod = "reequip"
+        end
+    end
+})
+
+TargetTab:CreateSection("Select Target Fish")
+
+for _, fishName in pairs(fishNames) do
+    TargetTab:CreateToggle({
+        Name = fishName,
+        CurrentValue = false,
+        Flag = "Target_" .. fishName,
+        Callback = function(val)
+            targetFishList[fishName] = val
+        end
+    })
+end
+
+QuestTab:CreateSection("Ticket Quest Giver")
+
+QuestTab:CreateSlider({
+    Name = "Accept Quest Count",
+    Range = {1, 500},
+    Increment = 1,
+    CurrentValue = 1,
+    Flag = "AcceptCount",
+    Callback = function(val)
+        acceptCount = val
+    end
+})
+
+QuestTab:CreateButton({
+    Name = "Accept Easy Quest",
+    Callback = function()
+        task.spawn(function()
+            local npc = workspace:WaitForChild("NPC"):WaitForChild("Function"):WaitForChild("Ticket Quest Giver")
+            for i = 1, acceptCount do
+                pcall(function()
+                    Events:WaitForChild("ChooseDialogueOption"):FireServer(
+                        "Ticket Quest Giver",
+                        1,
+                        "EasyAcceptQuest",
+                        {npc, "Ticket Quest"}
+                    )
+                end)
+                task.wait(0.1)
+            end
+            Rayfield:Notify({
+                Title = "Quest",
+                Content = "Accepted " .. acceptCount .. " quest(s)!",
+                Duration = 2,
+            })
+        end)
+    end
+})
+
+QuestTab:CreateSection("Claim Quests")
+
+QuestTab:CreateSlider({
+    Name = "Claim Quest Count",
+    Range = {1, 500},
+    Increment = 1,
+    CurrentValue = 1,
+    Flag = "ClaimCount",
+    Callback = function(val)
+        claimCount = val
+    end
+})
+
+QuestTab:CreateButton({
+    Name = "Claim Quest",
+    Callback = function()
+        task.spawn(function()
+            local npc = workspace:WaitForChild("NPC"):WaitForChild("Function"):WaitForChild("Ticket Quest Giver")
+            for i = 1, claimCount do
+                pcall(function()
+                    Events:WaitForChild("ChooseDialogueOption"):FireServer(
+                        "Ticket Quest Giver",
+                        1,
+                        "Quest",
+                        {npc}
+                    )
+                end)
+                task.wait(0.1)
+            end
+            Rayfield:Notify({
+                Title = "Quest",
+                Content = "Claimed " .. claimCount .. " quest(s)!",
+                Duration = 2,
+            })
+        end)
+    end
+})
+
+TpTab:CreateSection("Teleport")
+
+for _, name in pairs(spawnList) do
+    TpTab:CreateButton({
+        Name = name,
+        Callback = function()
+            teleportTo(name)
+            Rayfield:Notify({
+                Title = "Teleport",
+                Content = "Teleporting to " .. name,
+                Duration = 2,
+            })
+        end
+    })
+end
+
+RunService.RenderStepped:Connect(function()
+    char = lp.Character or char
+    if barLock then
+        pcall(function()
+            local fishingUI = MainGui.Fishing
+            if fishingUI.Visible then
+                local bar = fishingUI.BarFrame.Bar
+                bar.Position = UDim2.new(0.8, 0, bar.Position.Y.Scale, 0)
+                RS.Fishing:FireServer("1")
+            end
+        end)
+    end
+end)
+
+Rayfield:Notify({
+    Title = "Fishing Hub",
+    Content = "Loaded successfully!",
+    Duration = 3,
+})
