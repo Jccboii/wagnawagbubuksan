@@ -1,0 +1,448 @@
+local Players=game:GetService("Players")
+local RunService=game:GetService("RunService")
+local HttpService=game:GetService("HttpService")
+local ReplicatedStorage=game:GetService("ReplicatedStorage")
+local LP=Players.LocalPlayer
+local US=require(game.ReplicatedFirst.AllSideCode.UtilsSystem)
+local PD=US.PlayerData
+local CF=US.CfgFind
+local EM=US.EnumMgr
+local RF=US.RemoteFunction.RemoteFunction
+local LC=require(game.ReplicatedFirst.AllSideCode.ToolBasic.TranslationHelper.Language.Parent.LanguageCfg)
+
+local REM=ReplicatedStorage:WaitForChild("Msg"):WaitForChild("RemoteEvent")
+local MsgRE=REM:WaitForChild("RemoteEvent")
+local SkillRE=REM:WaitForChild("ReleaseGroupSkill")
+
+local Rayfield=loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+local TM=EM.ItemType.Material
+local MonsterFolder=workspace:WaitForChild("Monster")
+
+local THEME={
+Background=Color3.fromRGB(14,4,4),Topbar=Color3.fromRGB(22,6,6),Shadow=Color3.fromRGB(5,1,1),
+NotificationBackground=Color3.fromRGB(22,6,6),NotificationActionsBackground=Color3.fromRGB(28,8,8),
+TabBackground=Color3.fromRGB(16,5,5),TabStroke=Color3.fromRGB(80,15,15),TabBackgroundSelected=Color3.fromRGB(35,10,10),
+TabTextColor=Color3.fromRGB(180,80,80),SelectedTabTextColor=Color3.fromRGB(255,120,120),
+ElementBackground=Color3.fromRGB(22,7,7),ElementBackgroundHover=Color3.fromRGB(32,10,10),
+SecondaryElementBackground=Color3.fromRGB(26,8,8),ElementStroke=Color3.fromRGB(80,15,15),
+SecondaryElementStroke=Color3.fromRGB(60,12,12),SliderBackground=Color3.fromRGB(30,8,8),
+SliderProgress=Color3.fromRGB(200,30,30),SliderStroke=Color3.fromRGB(100,20,20),
+ToggleBackground=Color3.fromRGB(30,8,8),ToggleEnabled=Color3.fromRGB(200,30,30),
+ToggleDisabled=Color3.fromRGB(60,15,15),ToggleEnabledStroke=Color3.fromRGB(180,25,25),
+ToggleDisabledStroke=Color3.fromRGB(50,12,12),ToggleEnabledOuterStroke=Color3.fromRGB(150,20,20),
+ToggleDisabledOuterStroke=Color3.fromRGB(30,8,8),DropdownSelected=Color3.fromRGB(200,30,30),
+DropdownUnselected=Color3.fromRGB(35,10,10),InputBackground=Color3.fromRGB(22,7,7),
+InputStroke=Color3.fromRGB(80,15,15),PlaceholderColor=Color3.fromRGB(120,50,50),
+TextColor=Color3.fromRGB(255,210,210),SubTextColor=Color3.fromRGB(200,140,140),
+PureTitleTextColor=Color3.fromRGB(255,180,180),TitleTextColor=Color3.fromRGB(255,180,180),
+ButtonColor=Color3.fromRGB(120,18,18),ButtonStroke=Color3.fromRGB(160,25,25),
+ButtonTextColor=Color3.fromRGB(255,220,220)
+}
+
+local function ename(z)local o,n=pcall(LC.FormatByKey,z)return(o and n~="")and n or nil end
+local function bag(id)local b=PD.GetPlrDataByKey(LP,{"Bag"})if type(b)~="table"then return nil,0 end for _,v in pairs(b)do if tonumber(v.id)==id then local c=tonumber(v.count)or 0 if c>0 then return tonumber(v.onlyID),c end end end return nil,0 end
+local function sell(oid,cnt)pcall(function()RF:InvokeServer("\229\135\186\229\148\174\232\131\140\229\140\133\231\137\169\229\147\129",{onlyIDList={oid},countList={cnt}})end)end
+local function brew(r)
+pcall(function()RF:InvokeServer("炼药游戏开始",{cauldronID=8000001,materials=r.materials})end)
+pcall(function()MsgRE:FireServer("\231\130\188\232\141\175\230\184\184\230\136\143\231\187\147\230\157\159")end)
+end
+
+local RECIPES={
+{name="Frost Thorn Potion",materials={[2000008]=2,[2000006]=3}},
+{name="Night Wraith (Copper Earring)",materials={[2000009]=5}},
+{name="Night Wraith (Furnace Core)",materials={[2000010]=5}}
+}
+
+local mats,pots,ml,pl,lm,lp={},{},{},{},{},{}
+for i=2000001,2000200 do
+local o,c=pcall(CF.FindCfgByID,i)
+if o and c and tonumber(c.tp)==TM and c.ZhName then
+local n=ename(c.ZhName)
+if n then table.insert(mats,{id=i,name=n})end
+end
+end
+
+local pc=CF.GetCfgByName("potionConf")
+if type(pc)=="table"then
+for k,c in pairs(pc)do
+local id=tonumber(k)
+if id and c.ZhName then
+local n=ename(c.ZhName)
+if n then table.insert(pots,{id=id,name=n})end
+end
+end
+end
+
+table.sort(mats,function(a,b)return a.name<b.name end)
+table.sort(pots,function(a,b)return a.name<b.name end)
+
+for _,e in ipairs(mats)do local l=e.name ml[#ml+1]=l lm[l]=e end
+for _,e in ipairs(pots)do local l=e.name pl[#pl+1]=l lp[l]=e end
+
+local HP_MAP={[15]="Blueberry Bush",[100]="Bird's Nest",[60]="Mushroom Cluster",[600]="Large Mushroom Cluster",[120]="Pickaxe Dwarf",[300]="Knife Goblin",[20000]="Dwarf King",[24000]="Mutant Archer Goblin",[40000]="Mutant Warhammer Dwarf",[100000]="Big Bird's Nest"}
+local MONS={"Pickaxe Dwarf","Warhammer Dwarf","Dwarf King","Knife Goblin","Archer Goblin","Mutant Warhammer Dwarf","Mutant Archer Goblin","Big Bird's Nest"}
+local HERBS={"Blueberry Bush","Bird's Nest","Mushroom Cluster","Large Mushroom Cluster"}
+
+local function mtype(m)
+local a=m:FindFirstChild("Attrs")
+local h=a and a:FindFirstChild("5")
+if not h then return end
+if h.Value==3000 then
+local a1=a:FindFirstChild("1")
+return(a1 and a1.Value==60)and"Archer Goblin"or"Warhammer Dwarf"
+end
+return HP_MAP[h.Value]
+end
+
+local function alive(m)
+local h=m and m:FindFirstChildOfClass("Humanoid")
+return h and m:FindFirstChild("HumanoidRootPart")and h.Health>0
+end
+
+local HRP=LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+LP.CharacterAdded:Connect(function(c)HRP=c:WaitForChild("HumanoidRootPart")end)
+
+local W=Rayfield:CreateWindow({
+Name="Wizz",
+LoadingTitle="Wizz",
+LoadingSubtitle="🧙 All-in-One",
+DisableRayfieldPrompts=true,
+DisableBuildWarnings=true,
+ConfigurationSaving={Enabled=false},
+KeySystem=false,
+Theme=THEME
+})
+
+local farmOn,blockOn,height,blockDelay,targetSel,target,root,farmConn,blockConn=false,false,10,.3,{},nil,nil,nil,nil
+local sellSel,sellQty,sellDelay,sellOn,sellThread={},1,10,false,nil
+local brewSel,brewDelay,brewOn,brewThread=nil,10,false,nil
+
+local platform=Instance.new("Part")
+platform.Parent=workspace
+platform.Size=Vector3.new(8,1,8)
+platform.Anchored=true
+platform.CanCollide=true
+platform.Transparency=1
+platform.Name="WizzPlatform"
+
+local function valid(m)return not next(targetSel)or targetSel[mtype(m)]end
+
+local function nextMob()
+local f
+for _,m in pairs(MonsterFolder:GetChildren())do
+if alive(m)then
+if valid(m)then return m end
+f=f or m
+end
+end
+return not next(targetSel)and f or nil
+end
+
+local function fireBlock(mon,tr)
+task.spawn(function()
+if not HRP or not tr then return end
+local id=HttpService:GenerateGUID(false)
+local t={
+targetCF=tr.CFrame,
+releaseCF=HRP.CFrame,
+moveDirectionStr="Forward",
+characterType="Player",
+characterId=LP.UserId,
+trackTargetId=tostring(mon.Name),
+clientPredictCastId=id
+}
+pcall(SkillRE.FireServer,SkillRE,5,t)
+task.wait(.35)
+t.clientPredictCastId=nil
+t.skillButtonPhase="up"
+t.skillCastId=id
+pcall(SkillRE.FireServer,SkillRE,5,t)
+end)
+end
+
+local function disconnectBlock()
+if blockConn then blockConn:Disconnect()blockConn=nil end
+end
+
+local function connectBlock(mon)
+disconnectBlock()
+if not blockOn or not mon then return end
+local a=mon:FindFirstChildOfClass("Humanoid")
+a=a and a:FindFirstChildOfClass("Animator")
+if not a then return end
+blockConn=a.AnimationPlayed:Connect(function(t)
+if t.Name:find("1$")then
+task.delay(blockDelay,function()
+if blockOn and target==mon and alive(mon)then fireBlock(mon,root)end
+end)
+end
+end)
+end
+
+local function stopFarm()
+if farmConn then farmConn:Disconnect()farmConn=nil end
+disconnectBlock()
+target=nil
+root=nil
+platform.CFrame=CFrame.new(0,-500,0)
+end
+
+local function startFarm()
+stopFarm()
+local tm=0
+farmConn=RunService.Heartbeat:Connect(function(dt)
+tm+=dt
+if tm>=.5 or not alive(target)or not valid(target)then
+tm=0
+local p=target
+target=nextMob()
+if target~=p then
+root=target and target:FindFirstChild("HumanoidRootPart")
+connectBlock(target)
+end
+end
+if root and alive(target)then
+local pos=root.Position+Vector3.new(0,height,0)
+platform.CFrame=CFrame.new(pos)
+if HRP and(HRP.Position-pos).Magnitude>20 then
+HRP.CFrame=CFrame.new(pos+Vector3.new(0,3,0))
+end
+end
+end)
+end
+
+local FT=W:CreateTab("Autofarm",4483362458)
+FT:CreateSection("Control")
+FT:CreateToggle({Name="Enable Auto Farm",CurrentValue=false,Flag="AF1",Callback=function(v)
+farmOn=v
+if v then startFarm()else stopFarm()end
+end})
+
+FT:CreateToggle({Name="Auto Block",CurrentValue=false,Flag="AF2",Callback=function(v)
+blockOn=v
+if v then connectBlock(target)else disconnectBlock()end
+end})
+
+FT:CreateSlider({Name="Teleport Height",Range={10,30},Increment=1,Suffix=" studs",CurrentValue=10,Flag="AF3",Callback=function(v)
+height=v
+end})
+
+FT:CreateSlider({Name="Block Delay",Range={2,5},Increment=1,Suffix="00ms",CurrentValue=3,Flag="AF4",Callback=function(v)
+blockDelay=v/10
+end})
+
+FT:CreateSection("Target Selection")
+
+FT:CreateDropdown({Name="Monsters",Options=MONS,CurrentOption={},MultipleOptions=true,Flag="AF5",Callback=function(s)
+for _,n in ipairs(MONS)do targetSel[n]=nil end
+for _,n in ipairs(s)do targetSel[n]=true end
+target=nextMob()
+end})
+
+FT:CreateDropdown({Name="Herbs",Options=HERBS,CurrentOption={},MultipleOptions=true,Flag="AF6",Callback=function(s)
+for _,n in ipairs(HERBS)do targetSel[n]=nil end
+for _,n in ipairs(s)do targetSel[n]=true end
+target=nextMob()
+end})
+
+local ST=W:CreateTab("Auto Sell",4483362458)
+
+ST:CreateSection("Item Selection")
+
+ST:CreateDropdown({Name="Materials",Options=ml,CurrentOption={},MultipleOptions=true,Flag="AS1",Callback=function(s)
+for l in pairs(lm)do sellSel[l]=nil end
+for _,l in ipairs(s)do if lm[l]then sellSel[l]=lm[l]end end
+end})
+
+ST:CreateDropdown({Name="Potions",Options=pl,CurrentOption={},MultipleOptions=true,Flag="AS2",Callback=function(s)
+for l in pairs(lp)do sellSel[l]=nil end
+for _,l in ipairs(s)do if lp[l]then sellSel[l]=lp[l]end end
+end})
+
+ST:CreateSection("Quantity")
+
+ST:CreateInput({Name="Input Amount",PlaceholderText="Enter quantity (0 = all)",RemoveTextAfterFocusLost=false,Flag="AS3",Callback=function(v)
+local n=tonumber(v)
+if n then sellQty=math.max(0,math.floor(n))end
+end})
+
+ST:CreateSection("Sell")
+
+ST:CreateToggle({Name="Auto Sell",CurrentValue=false,Flag="AS4",Callback=function(v)
+sellOn=v
+if v then
+if not next(sellSel)then
+Rayfield:Notify({Title="Wizz",Content="Select items first!",Duration=2})
+sellOn=false
+return
+end
+sellQty=0
+sellThread=task.spawn(function()
+while sellOn do
+for _,e in pairs(sellSel)do
+local oid,bc=bag(e.id)
+if oid then sell(oid,bc)end
+end
+task.wait(sellDelay)
+end
+end)
+else
+if sellThread then task.cancel(sellThread)sellThread=nil end
+end
+end})
+
+ST:CreateSlider({Name="Sell Delay (seconds)",Range={10,60},Increment=1,CurrentValue=10,Flag="AS5",Callback=function(v)
+sellDelay=v
+end})
+
+ST:CreateButton({Name="Sell Once",Callback=function()
+if not next(sellSel)then
+Rayfield:Notify({Title="Wizz",Content="Select items first!",Duration=2})
+return
+end
+local r={}
+for _,e in pairs(sellSel)do
+local oid,bc=bag(e.id)
+if oid then
+sell(oid,sellQty==0 and bc or math.min(sellQty,bc))
+table.insert(r,"✓ "..e.name)
+else
+table.insert(r,"✗ "..e.name)
+end
+end
+Rayfield:Notify({Title="Sell Result",Content=table.concat(r,"\n"),Duration=4})
+end})
+
+local BT=W:CreateTab("Auto Brew",4483362458)
+
+BT:CreateSection("Select Potion")
+
+local brewToggles={}
+
+local function stopBrew()
+brewOn=false
+if brewThread then task.cancel(brewThread)brewThread=nil end
+end
+
+local function startBrew()
+stopBrew()
+brewOn=true
+brewThread=task.spawn(function()
+while brewOn and brewSel do
+brew(brewSel)
+task.wait(brewDelay)
+end
+end)
+end
+
+for i,r in ipairs(RECIPES)do
+brewToggles[i]=BT:CreateToggle({
+Name=r.name,
+CurrentValue=false,
+Flag="AB"..i,
+Callback=function(v)
+if v then
+brewSel=r
+for j,t in ipairs(brewToggles)do
+if j~=i then t:Set(false)end
+end
+if brewOn then startBrew()end
+elseif brewSel==r then
+brewSel=nil
+stopBrew()
+end
+end
+})
+end
+
+BT:CreateSection("Control")
+
+BT:CreateToggle({Name="Auto Brew",CurrentValue=false,Flag="ABMAIN",Callback=function(v)
+if v then
+if not brewSel then
+Rayfield:Notify({Title="Wizz",Content="Select a potion first!",Duration=2})
+return
+end
+startBrew()
+else
+stopBrew()
+end
+end})
+
+BT:CreateSlider({Name="Brew Delay (seconds)",Range={10,30},Increment=1,CurrentValue=10,Flag="ABDELAY",Callback=function(v)
+brewDelay=v
+if brewOn and brewSel then startBrew()end
+end})
+
+BT:CreateButton({Name="Brew Once",Callback=function()
+if not brewSel then
+Rayfield:Notify({Title="Wizz",Content="Select a potion first!",Duration=2})
+return
+end
+brew(brewSel)
+end})
+
+local GPT=W:CreateTab("GamePass",4483362458)
+
+local gpSel,user
+
+GPT:CreateSection("Gamepass")
+
+GPT:CreateDropdown({
+Name="Select Gamepass",
+Options={"BetterAlchemy","Cauldron_1","DoubleStorage","FastAlchemy","SellAnywhere"},
+CurrentOption={},
+MultipleOptions=false,
+Flag="GP1",
+Callback=function(s)
+gpSel=type(s)=="table"and s[1]or s
+end
+})
+
+GPT:CreateInput({
+Name="Username",
+PlaceholderText="Enter target username",
+RemoveTextAfterFocusLost=false,
+Flag="GP2",
+Callback=function(v)
+user=v
+end
+})
+
+GPT:CreateButton({
+Name="Activate",
+Callback=function()
+if not gpSel or gpSel==""then
+Rayfield:Notify({Title="Wizz",Content="Select a Gamepass first!",Duration=2})
+return
+end
+
+if not user or user==""then
+Rayfield:Notify({Title="Wizz",Content="Enter a username first!",Duration=2})
+return
+end
+
+local p=Players:FindFirstChild(user)
+if not p then
+Rayfield:Notify({Title="Wizz",Content="Player not found!",Duration=2})
+return
+end
+
+local f=p:FindFirstChild("GamePass")
+local t=f and f:FindFirstChild(gpSel)
+
+if t then
+t.Value=1
+Rayfield:Notify({Title="Wizz",Content=gpSel.." activated for "..user.."!",Duration=2})
+else
+Rayfield:Notify({Title="Wizz",Content="Gamepass not found!",Duration=2})
+end
+end
+})
+
+Rayfield:Notify({
+Title="Wizz",
+Content="Loaded! "..#mats.." mats · "..#pots.." potions 🧙🔥",
+Duration=4
+})
